@@ -4,7 +4,7 @@
 
 A real-time music scrobbling dashboard that aggregates listening activity from the decentralized Nostr network. View what people are listening to across the globe without any central authority or data collection.
 
-![trackstr Demo](https://nostrapps.github.io/trackstr/)
+[trackstr Demo](https://nostrapps.github.io/trackstr/)
 
 ## ✨ Features
 
