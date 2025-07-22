@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>trackstr - Decentralized Music Scrobbling</title>
+    <script src="https://unpkg.com/preact@10.23.1/dist/preact.umd.js"></script>
+    <script src="https://unpkg.com/preact@10.23.1/hooks/dist/hooks.umd.js"></script>
+    <script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+    <script src="https://unpkg.com/nostr-tools@2.15.1/lib/nostr.bundle.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            color: #e2e8f0;
+            line-height: 1.5;
+            font-size: 14px;
+            antialiased: true;
+        }
+        
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #8b5cf6, #06b6d4, #10b981);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 16px;
+            letter-spacing: -0.025em;
+        }
+        
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.125rem;
+            margin-bottom: 32px;
+            font-weight: 400;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 32px;
+            padding: 24px;
+            background: #1e293b;
+            border-radius: 12px;
+            border: 1px solid #334155;
+        }
+        
+        .stat {
+            text-align: center;
+        }
+        
+        .stat-number {
+            display: block;
+            font-size: 2rem;
+            font-weight: 700;
+            color: #f8fafc;
+            line-height: 1;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+            margin-top: 4px;
+            font-weight: 500;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 80px 20px;
+        }
+        
+        .spinner {
+            width: 32px;
+            height: 32px;
+            border: 2px solid #334155;
+            border-top: 2px solid #06b6d4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 24px;
+        }
+        
+        .loading-text {
+            color: #94a3b8;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .scrobbles {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        .scrobble {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.15s ease;
+        }
+        
+        .scrobble:hover {
+            border-color: #475569;
+            transform: translateY(-1px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .scrobble-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .user-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+        
+        .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .username {
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #06b6d4;
+            text-decoration: none;
+            transition: color 0.15s ease;
+            display: block;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .username:hover {
+            color: #0891b2;
+        }
+        
+        .timestamp {
+            color: #64748b;
+            font-size: 0.75rem;
+            margin-top: 2px;
+            font-weight: 500;
+        }
+        
+        .track-info {
+            margin-bottom: 20px;
+        }
+        
+        .track-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #f8fafc;
+            text-decoration: none;
+            transition: color 0.15s ease;
+            display: block;
+            margin-bottom: 8px;
+            line-height: 1.375;
+        }
+        
+        .track-title:hover {
+            color: #06b6d4;
+        }
+        
+        .track-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .track-artist {
+            color: #cbd5e1;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .track-album {
+            color: #94a3b8;
+            font-size: 0.875rem;
+            font-weight: 400;
+        }
+        
+        .scrobble-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px;
+            padding-top: 20px;
+            border-top: 1px solid #334155;
+        }
+        
+        .action-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color 0.15s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .action-link:hover {
+            color: #06b6d4;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 48px 24px;
+            background: #7f1d1d;
+            border: 1px solid #991b1b;
+            border-radius: 12px;
+            color: #fca5a5;
+        }
+        
+        .error h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .error p {
+            color: #f87171;
+            margin-bottom: 16px;
+        }
+        
+        .retry-button {
+            background: #dc2626;
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.15s ease;
+        }
+        
+        .retry-button:hover {
+            background: #b91c1c;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #94a3b8;
+            font-size: 1rem;
+        }
+        
+        .music-note {
+            display: inline-block;
+            animation: bounce 2s ease-in-out infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+            60% {
+                transform: translateY(-5px);
+            }
+        }
+        
+        @media (min-width: 640px) {
+            .container {
+                padding: 32px 24px;
+            }
+            
+            .scrobble {
+                padding: 32px;
+            }
+            
+            .scrobbles {
+                gap: 20px;
+            }
+            
+            .stats {
+                gap: 48px;
+            }
+        }
+        
+        @media (max-width: 640px) {
+            .logo {
+                font-size: 2rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+            
+            .stats {
+                gap: 16px;
+                padding: 20px;
+            }
+            
+            .stat-number {
+                font-size: 1.5rem;
+            }
+            
+            .scrobble-header {
+                align-items: flex-start;
+            }
+            
+            .scrobble-actions {
+                gap: 12px;
+            }
+            
+            .action-link {
+                font-size: 0.8125rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        const { createElement: h, render } = preact;
+        const { useState, useEffect } = preactHooks;
+        const html = htm.bind(h);
+
+        // Nostr relays for fetching scrobbles
+        const RELAYS = [
+            'wss://spotify-scrobbler.fiatjaf.com',
+            'wss://nostr.wine',
+            'wss://theforest.nostr1.com',
+            'wss://nostr.land',
+            'wss://pyramid.fiatjaf.com'
+        ];
+
+        // Helper functions
+        const formatDate = (timestamp) => {
+            const date = new Date(timestamp * 1000);
+            const now = new Date();
+            const diff = now.getTime() - date.getTime();
+            
+            if (diff < 24 * 60 * 60 * 1000) {
+                const hours = Math.floor(diff / (60 * 60 * 1000));
+                if (hours < 1) {
+                    const minutes = Math.floor(diff / (60 * 1000));
+                    return `${minutes} minute${minutes !== 1 ? 's' : ''} ago`;
+                }
+                return `${hours} hour${hours !== 1 ? 's' : ''} ago`;
+            }
+            
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+            });
+        };
+
+        const eventToScrobble = (event) => {
+            const scrobble = {
+                title: '<untitled>',
+                album: '<none>',
+                artists: [],
+                isrc: null,
+                spotify: null,
+                event: event
+            };
+            
+            event.tags.forEach(tag => {
+                switch (tag[0]) {
+                    case 'title':
+                        scrobble.title = tag[1];
+                        break;
+                    case 'album':
+                        scrobble.album = tag[1];
+                        break;
+                    case 'artist':
+                        scrobble.artists.push(tag[1]);
+                        break;
+                    case 'i':
+                        if (tag[1].startsWith('isrc:')) {
+                            scrobble.isrc = tag[1].substring(5);
+                        } else if (tag[1].startsWith('spotify:track:')) {
+                            scrobble.spotify = tag[1].substring(14);
+                        }
+                        break;
+                }
+            });
+            
+            return scrobble;
+        };
+
+        const getUserInitials = (pubkey) => {
+            return pubkey.substring(0, 2).toUpperCase();
+        };
+
+        const truncatePubkey = (pubkey) => {
+            return `${pubkey.substring(0, 8)}...${pubkey.substring(-8)}`;
+        };
+
+        // Main App Component
+        const App = () => {
+            const [scrobbles, setScrobbles] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [stats, setStats] = useState({ total: 0, users: 0, relays: 0 });
+
+            useEffect(() => {
+                fetchScrobbles();
+            }, []);
+
+            const fetchScrobbles = async () => {
+                try {
+                    setLoading(true);
+                    setError(null);
+                    
+                    const allScrobbles = [];
+                    const uniqueUsers = new Set();
+                    let connectedRelays = 0;
+
+                    // Simple WebSocket-based implementation
+                    const promises = RELAYS.map(relay => {
+                        return new Promise((resolve, reject) => {
+                            const ws = new WebSocket(relay);
+                            let relayScrobbles = [];
+                            
+                            ws.onopen = () => {
+                                connectedRelays++;
+                                // Subscribe to scrobble events (kind 1073)
+                                const subscription = JSON.stringify([
+                                    'REQ',
+                                    'scrobbles',
+                                    {
+                                        kinds: [1073],
+                                        limit: 100
+                                    }
+                                ]);
+                                ws.send(subscription);
+                            };
+                            
+                            ws.onmessage = (event) => {
+                                try {
+                                    const data = JSON.parse(event.data);
+                                    if (data[0] === 'EVENT' && data[2]) {
+                                        const scrobble = eventToScrobble(data[2]);
+                                        relayScrobbles.push(scrobble);
+                                        uniqueUsers.add(data[2].pubkey);
+                                    } else if (data[0] === 'EOSE') {
+                                        ws.close();
+                                        resolve(relayScrobbles);
+                                    }
+                                } catch (e) {
+                                    console.error('Error parsing message:', e);
+                                }
+                            };
+                            
+                            ws.onerror = () => {
+                                reject(new Error(`Failed to connect to ${relay}`));
+                            };
+                            
+                            // Timeout after 10 seconds
+                            setTimeout(() => {
+                                if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+                                    ws.close();
+                                    resolve(relayScrobbles);
+                                }
+                            }, 10000);
+                        });
+                    });
+
+                    const results = await Promise.allSettled(promises);
+                    
+                    results.forEach(result => {
+                        if (result.status === 'fulfilled') {
+                            allScrobbles.push(...result.value);
+                        }
+                    });
+
+                    // Sort by timestamp and remove duplicates
+                    const uniqueScrobbles = Array.from(
+                        new Map(allScrobbles.map(s => [s.event.id, s])).values()
+                    ).sort((a, b) => b.event.created_at - a.event.created_at);
+
+                    setScrobbles(uniqueScrobbles.slice(0, 50)); // Show latest 50
+                    setStats({
+                        total: uniqueScrobbles.length,
+                        users: uniqueUsers.size,
+                        relays: connectedRelays
+                    });
+                    
+                } catch (err) {
+                    setError('Failed to load scrobbles. Please try again later.');
+                    console.error('Error fetching scrobbles:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return html`
+                <div class="container">
+                    <header class="header">
+                        <div class="logo">
+                            <span class="music-note">♪</span> trackstr <span class="music-note">♫</span>
+                        </div>
+                        <div class="subtitle">
+                            Decentralized Music Scrobbling on Nostr
+                        </div>
+                        <div class="stats">
+                            <div class="stat">
+                                <div class="stat-number">${stats.total}</div>
+                                <div class="stat-label">Scrobbles</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-number">${stats.users}</div>
+                                <div class="stat-label">Users</div>
+                            </div>
+                            <div class="stat">
+                                <div class="stat-number">${stats.relays}</div>
+                                <div class="stat-label">Relays</div>
+                            </div>
+                        </div>
+                    </header>
+
+                    ${loading && html`
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <div class="loading-text">Loading latest scrobbles...</div>
+                        </div>
+                    `}
+
+                    ${error && html`
+                        <div class="error">
+                            <h3>⚠️ Error</h3>
+                            <p>${error}</p>
+                            <button onclick=${fetchScrobbles} class="retry-button">
+                                Retry
+                            </button>
+                        </div>
+                    `}
+
+                    ${!loading && !error && html`
+                        <div class="scrobbles">
+                            ${scrobbles.map(scrobble => html`
+                                <div key=${scrobble.event.id} class="scrobble">
+                                    <div class="scrobble-header">
+                                        <div class="user-avatar">
+                                            ${getUserInitials(scrobble.event.pubkey)}
+                                        </div>
+                                        <div class="user-info">
+                                            <a 
+                                                href="#" 
+                                                class="username"
+                                                title=${scrobble.event.pubkey}
+                                            >
+                                                ${truncatePubkey(scrobble.event.pubkey)}
+                                            </a>
+                                            <div class="timestamp">
+                                                ${formatDate(scrobble.event.created_at)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="track-info">
+                                        <a href="#" class="track-title" title="View track details">
+                                            ${scrobble.title}
+                                        </a>
+                                        <div class="track-meta">
+                                            <div class="track-artist">
+                                                ${scrobble.artists.join(', ') || 'Unknown Artist'}
+                                            </div>
+                                            <div class="track-album">
+                                                ${scrobble.album}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="scrobble-actions">
+                                        <a 
+                                            href="https://nostr.eu/${scrobble.event.id}"
+                                            target="_blank"
+                                            class="action-link"
+                                            title="View on Nostr"
+                                        >
+                                            View Event
+                                        </a>
+                                        ${scrobble.spotify && html`
+                                            <a 
+                                                href="https://open.spotify.com/track/${scrobble.spotify}"
+                                                target="_blank"
+                                                class="action-link"
+                                                title="Open in Spotify"
+                                            >
+                                                Spotify
+                                            </a>
+                                        `}
+                                        ${scrobble.isrc && html`
+                                            <a 
+                                                href="https://musicbrainz.org/isrc/${scrobble.isrc}"
+                                                target="_blank"
+                                                class="action-link"
+                                                title="View on MusicBrainz"
+                                            >
+                                                MusicBrainz
+                                            </a>
+                                        `}
+                                        <a 
+                                            href="https://www.youtube.com/results?search_query=${encodeURIComponent(scrobble.title + ' ' + scrobble.artists.join(' '))}"
+                                            target="_blank"
+                                            class="action-link"
+                                            title="Search on YouTube"
+                                        >
+                                            YouTube
+                                        </a>
+                                        <a 
+                                            href="https://www.google.com/search?q=${encodeURIComponent(scrobble.title + ' ' + scrobble.artists.join(' '))}"
+                                            target="_blank"
+                                            class="action-link"
+                                            title="Search online"
+                                        >
+                                            Search
+                                        </a>
+                                    </div>
+                                </div>
+                            `)}
+                        </div>
+                    `}
+
+                    ${!loading && !error && scrobbles.length === 0 && html`
+                        <div class="empty-state">
+                            <div>No scrobbles found. The network might be quiet right now.</div>
+                        </div>
+                    `}
+                </div>
+            `;
+        };
+
+        // Render the app
+        render(html`<${App} />`, document.getElementById('app'));
+    </script>
+</body>
+</html>
