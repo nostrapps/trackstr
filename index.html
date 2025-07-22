@@ -382,13 +382,16 @@
         const { useState, useEffect } = preactHooks;
         const html = htm.bind(h);
 
-        // Nostr relays for fetching scrobbles
+        // Nostr relays for fetching scrobbles (same as publishing relays)
         const RELAYS = [
-            'wss://spotify-scrobbler.fiatjaf.com',
+            'wss://relay.damus.io',
             'wss://nostr.wine',
-            'wss://theforest.nostr1.com',
-            'wss://nostr.land',
-            'wss://pyramid.fiatjaf.com'
+            'wss://relay.snort.social',
+            'wss://nostr.mutinywallet.com',
+            'wss://relay.nostr.band',
+            'wss://nos.lol',
+            'wss://relay.current.fyi',
+            'wss://nostr.land'
         ];
 
         // Helper functions

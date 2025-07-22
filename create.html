@@ -300,11 +300,14 @@
 
         // Nostr relays for publishing scrobbles
         const RELAYS = [
-            'wss://spotify-scrobbler.fiatjaf.com',
+            'wss://relay.damus.io',
             'wss://nostr.wine',
-            'wss://theforest.nostr1.com',
-            'wss://nostr.land',
-            'wss://pyramid.fiatjaf.com'
+            'wss://relay.snort.social',
+            'wss://nostr.mutinywallet.com',
+            'wss://relay.nostr.band',
+            'wss://nos.lol',
+            'wss://relay.current.fyi',
+            'wss://nostr.land'
         ];
 
         // Main Create Component
@@ -319,6 +322,7 @@
             });
             const [isSubmitting, setIsSubmitting] = useState(false);
             const [message, setMessage] = useState({ type: '', text: '' });
+            const [publishedEventId, setPublishedEventId] = useState('');
 
             useEffect(() => {
                 // Check for stored private key
@@ -405,44 +409,122 @@
                 }
             };
 
+            const publishToRelay = async (relayUrl, event) => {
+                return new Promise((resolve, reject) => {
+                    console.log(`🔗 Connecting to ${relayUrl}`);
+                    const ws = new WebSocket(relayUrl);
+                    let published = false;
+                    
+                    const timeout = setTimeout(() => {
+                        if (!published) {
+                            console.log(`⏰ Timeout for ${relayUrl}`);
+                            ws.close();
+                            reject(new Error(`Timeout: ${relayUrl}`));
+                        }
+                    }, 15000);
+                    
+                    ws.onopen = () => {
+                        console.log(`✅ Connected to ${relayUrl}`);
+                        const eventMessage = JSON.stringify(['EVENT', event]);
+                        console.log(`📤 Sending event to ${relayUrl}:`, event.id);
+                        ws.send(eventMessage);
+                    };
+                    
+                    ws.onmessage = (message) => {
+                        try {
+                            const data = JSON.parse(message.data);
+                            console.log(`📥 Response from ${relayUrl}:`, data);
+                            
+                            if (data[0] === 'OK') {
+                                if (data[1] === event.id) {
+                                    if (data[2] === true) {
+                                        console.log(`🎉 Successfully published to ${relayUrl}`);
+                                        published = true;
+                                        clearTimeout(timeout);
+                                        ws.close();
+                                        resolve(relayUrl);
+                                    } else {
+                                        console.log(`❌ Rejected by ${relayUrl}: ${data[3] || 'Unknown reason'}`);
+                                        clearTimeout(timeout);
+                                        ws.close();
+                                        reject(new Error(`Rejected: ${data[3] || 'Unknown reason'}`));
+                                    }
+                                }
+                            } else if (data[0] === 'NOTICE') {
+                                console.log(`ℹ️  Notice from ${relayUrl}: ${data[1]}`);
+                            }
+                        } catch (e) {
+                            console.error(`❌ Error parsing response from ${relayUrl}:`, e);
+                        }
+                    };
+                    
+                    ws.onerror = (error) => {
+                        console.log(`❌ Connection error to ${relayUrl}:`, error);
+                        clearTimeout(timeout);
+                        reject(new Error(`Connection failed: ${relayUrl}`));
+                    };
+                    
+                    ws.onclose = () => {
+                        console.log(`🔌 Connection closed to ${relayUrl}`);
+                    };
+                });
+            };
+
             const submitScrobble = async () => {
                 if (!validateForm()) return;
 
                 setIsSubmitting(true);
                 setMessage({ type: '', text: '' });
+                setPublishedEventId('');
 
                 try {
+                    console.log('🎵 Creating scrobble event...');
                     const event = createScrobbleEvent();
-                    const pool = new SimplePool();
+                    console.log('📝 Event created:', event);
+                    setPublishedEventId(event.id);
+                    
+                    console.log(`🚀 Publishing to ${RELAYS.length} relays...`);
                     
                     // Publish to all relays
-                    const promises = RELAYS.map(relay => 
-                        pool.publish([relay], event).catch(err => {
-                            console.warn(`Failed to publish to ${relay}:`, err);
+                    const publishPromises = RELAYS.map(relayUrl => 
+                        publishToRelay(relayUrl, event).catch(error => {
+                            console.log(`❌ Failed to publish to ${relayUrl}:`, error.message);
                             return null;
                         })
                     );
 
-                    await Promise.allSettled(promises);
+                    const results = await Promise.allSettled(publishPromises);
+                    const successful = results.filter(r => r.status === 'fulfilled' && r.value !== null);
                     
-                    setMessage({ 
-                        type: 'success', 
-                        text: 'Scrobble published successfully! It may take a moment to appear on the main feed.' 
-                    });
+                    console.log(`📊 Publishing results: ${successful.length}/${RELAYS.length} successful`);
                     
-                    // Clear form
-                    setFormData({
-                        title: '',
-                        artist: '',
-                        album: '',
-                        spotify: '',
-                        isrc: ''
-                    });
+                    if (successful.length > 0) {
+                        const successfulRelays = successful.map(r => r.value).join(', ');
+                        setMessage({ 
+                            type: 'success', 
+                            text: `🎉 Scrobble published successfully to ${successful.length}/${RELAYS.length} relays!` 
+                        });
+                        
+                        // Clear form
+                        setFormData({
+                            title: '',
+                            artist: '',
+                            album: '',
+                            spotify: '',
+                            isrc: ''
+                        });
+                    } else {
+                        setMessage({ 
+                            type: 'error', 
+                            text: '❌ Failed to publish to any relays. Please check your connection and try again.' 
+                        });
+                    }
 
                 } catch (error) {
+                    console.error('💥 Publishing error:', error);
                     setMessage({ 
                         type: 'error', 
-                        text: `Failed to publish scrobble: ${error.message}` 
+                        text: `Failed to create event: ${error.message}` 
                     });
                 } finally {
                     setIsSubmitting(false);
@@ -477,6 +559,17 @@
                     ${message.text && html`
                         <div class=${`alert alert-${message.type}`}>
                             ${message.text}
+                            ${message.type === 'success' && publishedEventId && html`
+                                <div style="margin-top: 12px;">
+                                    <a 
+                                        href="https://nostr.eu/${publishedEventId}" 
+                                        target="_blank" 
+                                        style="color: #10b981; text-decoration: underline;"
+                                    >
+                                        View your scrobble on nostr.eu →
+                                    </a>
+                                </div>
+                            `}
                         </div>
                     `}
 
