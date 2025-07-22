@@ -1,0 +1,41 @@
+{
+  "name": "trackstr",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Command line tool for decentralized music scrobbling on Nostr",
+  "main": "trackstr-cli.js",
+  "bin": {
+    "trackstr": "./trackstr-cli.js",
+    "trackstr-cli": "./trackstr-cli.js"
+  },
+  "scripts": {
+    "start": "node trackstr-cli.js",
+    "test": "node trackstr-cli.js --help"
+  },
+  "keywords": [
+    "nostr",
+    "music",
+    "scrobbling",
+    "cli",
+    "decentralized",
+    "lastfm",
+    "trackstr"
+  ],
+  "author": "nostrapps",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.16.0",
+    "nostr-tools": "^2.15.1"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nostrapps/trackstr.git"
+  },
+  "homepage": "https://nostrapps.github.io/trackstr/",
+  "bugs": {
+    "url": "https://github.com/nostrapps/trackstr/issues"
+  }
+}
