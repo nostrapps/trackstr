@@ -1,6 +1,6 @@
 {
   "name": "trackstr",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "description": "Command line tool for decentralized music scrobbling on Nostr",
   "main": "trackstr-cli.js",

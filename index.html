@@ -177,6 +177,11 @@
             flex-shrink: 0;
         }
         
+        .user-avatar-image {
+            object-fit: cover;
+            background: none;
+        }
+        
         .user-info {
             flex: 1;
             min-width: 0;
@@ -458,12 +463,96 @@
             return `${pubkey.substring(0, 8)}...${pubkey.substring(-8)}`;
         };
 
+        // Fetch user profiles (kind 0 events)
+        const fetchUserProfiles = async (pubkeys) => {
+            const profiles = new Map();
+            
+            const profilePromises = RELAYS.map(relay => {
+                return new Promise((resolve) => {
+                    const ws = new WebSocket(relay);
+                    let profileEvents = [];
+                    
+                    ws.onopen = () => {
+                        // Subscribe to profile events (kind 0) for the specific pubkeys
+                        const subscription = JSON.stringify([
+                            'REQ',
+                            'profiles',
+                            {
+                                kinds: [0],
+                                authors: pubkeys,
+                                limit: pubkeys.length * 2 // Allow for multiple profile updates
+                            }
+                        ]);
+                        ws.send(subscription);
+                    };
+                    
+                    ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            if (data[0] === 'EVENT' && data[2]) {
+                                profileEvents.push(data[2]);
+                            } else if (data[0] === 'EOSE') {
+                                ws.close();
+                                resolve(profileEvents);
+                            }
+                        } catch (e) {
+                            console.error('Error parsing profile message:', e);
+                        }
+                    };
+                    
+                    ws.onerror = () => resolve([]);
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) {
+                            ws.close();
+                            resolve(profileEvents);
+                        }
+                    }, 5000);
+                });
+            });
+            
+            const results = await Promise.allSettled(profilePromises);
+            const allProfileEvents = [];
+            
+            results.forEach(result => {
+                if (result.status === 'fulfilled') {
+                    allProfileEvents.push(...result.value);
+                }
+            });
+            
+            // Process profile events and keep the latest for each pubkey
+            const profileMap = new Map();
+            allProfileEvents.forEach(event => {
+                try {
+                    const content = JSON.parse(event.content);
+                    const existingProfile = profileMap.get(event.pubkey);
+                    
+                    // Keep the latest profile event
+                    if (!existingProfile || event.created_at > existingProfile.created_at) {
+                        profileMap.set(event.pubkey, {
+                            name: content.name,
+                            display_name: content.display_name,
+                            picture: content.picture,
+                            about: content.about,
+                            created_at: event.created_at
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse profile content:', event.content);
+                }
+            });
+            
+            return profileMap;
+        };
+
         // Main App Component
         const App = () => {
             const [scrobbles, setScrobbles] = useState([]);
             const [loading, setLoading] = useState(true);
             const [error, setError] = useState(null);
             const [stats, setStats] = useState({ total: 0, users: 0, relays: 0 });
+            const [profiles, setProfiles] = useState(new Map());
 
             useEffect(() => {
                 fetchScrobbles();
@@ -541,12 +630,26 @@
                         new Map(allScrobbles.map(s => [s.event.id, s])).values()
                     ).sort((a, b) => b.event.created_at - a.event.created_at);
 
-                    setScrobbles(uniqueScrobbles.slice(0, 50)); // Show latest 50
+                    const latestScrobbles = uniqueScrobbles.slice(0, 50);
+                    setScrobbles(latestScrobbles);
                     setStats({
                         total: uniqueScrobbles.length,
                         users: uniqueUsers.size,
                         relays: connectedRelays
                     });
+                    
+                    // Fetch profiles for the scrobble authors
+                    if (latestScrobbles.length > 0) {
+                        const pubkeys = Array.from(new Set(latestScrobbles.map(s => s.event.pubkey)));
+                        console.log(`Fetching profiles for ${pubkeys.length} users...`);
+                        
+                        fetchUserProfiles(pubkeys).then(profileMap => {
+                            console.log(`Loaded ${profileMap.size} profiles`);
+                            setProfiles(profileMap);
+                        }).catch(err => {
+                            console.warn('Failed to fetch profiles:', err);
+                        });
+                    }
                     
                 } catch (err) {
                     setError('Failed to load scrobbles. Please try again later.');
@@ -607,16 +710,36 @@
                             ${scrobbles.map(scrobble => html`
                                 <div key=${scrobble.event.id} class="scrobble">
                                     <div class="scrobble-header">
-                                        <div class="user-avatar">
-                                            ${getUserInitials(scrobble.event.pubkey)}
-                                        </div>
+                                        ${(() => {
+                                            const profile = profiles.get(scrobble.event.pubkey);
+                                            const profilePicture = profile?.picture;
+                                            
+                                            return profilePicture ? html`
+                                                <img 
+                                                    src=${profilePicture} 
+                                                    alt="User avatar" 
+                                                    class="user-avatar user-avatar-image"
+                                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                                                />
+                                                <div class="user-avatar" style="display: none;">
+                                                    ${getUserInitials(scrobble.event.pubkey)}
+                                                </div>
+                                            ` : html`
+                                                <div class="user-avatar">
+                                                    ${getUserInitials(scrobble.event.pubkey)}
+                                                </div>
+                                            `;
+                                        })()}
                                         <div class="user-info">
                                             <a 
                                                 href="#" 
                                                 class="username"
                                                 title=${scrobble.event.pubkey}
                                             >
-                                                ${truncatePubkey(scrobble.event.pubkey)}
+                                                ${(() => {
+                                                    const profile = profiles.get(scrobble.event.pubkey);
+                                                    return profile?.display_name || profile?.name || truncatePubkey(scrobble.event.pubkey);
+                                                })()}
                                             </a>
                                             <div class="timestamp">
                                                 ${formatDate(scrobble.event.created_at)}
