@@ -54,6 +54,33 @@
             font-weight: 400;
         }
         
+        .nav {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+        }
+        
+        .nav-link:hover {
+            color: #06b6d4;
+            background: #1e293b;
+        }
+        
+        .nav-link.active {
+            color: #06b6d4;
+            background: #1e293b;
+        }
+        
         .stats {
             display: grid;
             grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -535,6 +562,10 @@
                         <div class="subtitle">
                             Decentralized Music Scrobbling on Nostr
                         </div>
+                        <nav class="nav">
+                            <a href="index.html" class="nav-link active">View Feed</a>
+                            <a href="create.html" class="nav-link">Create Scrobble</a>
+                        </nav>
                         <div class="stats">
                             <div class="stat">
                                 <div class="stat-number">${stats.total}</div>

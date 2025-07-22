@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Scrobble - trackstr</title>
+    <script src="https://unpkg.com/preact@10.23.1/dist/preact.umd.js"></script>
+    <script src="https://unpkg.com/preact@10.23.1/hooks/dist/hooks.umd.js"></script>
+    <script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js"></script>
+    <script src="https://unpkg.com/nostr-tools@2.15.1/lib/nostr.bundle.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            color: #e2e8f0;
+            line-height: 1.5;
+            font-size: 14px;
+            antialiased: true;
+        }
+        
+        .container {
+            max-width: 768px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #8b5cf6, #06b6d4, #10b981);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 16px;
+            letter-spacing: -0.025em;
+        }
+        
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.125rem;
+            margin-bottom: 32px;
+            font-weight: 400;
+        }
+        
+        .nav {
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+        }
+        
+        .nav-link:hover {
+            color: #06b6d4;
+            background: #1e293b;
+        }
+        
+        .nav-link.active {
+            color: #06b6d4;
+            background: #1e293b;
+        }
+        
+        .form-container {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+        
+        .form-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #f8fafc;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        .form-label {
+            display: block;
+            color: #cbd5e1;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .form-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #e2e8f0;
+            font-size: 0.875rem;
+            transition: border-color 0.15s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #06b6d4;
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: #64748b;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 32px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: #06b6d4;
+            color: #ffffff;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background: #0891b2;
+        }
+        
+        .btn-primary:disabled {
+            background: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #334155;
+            color: #cbd5e1;
+        }
+        
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        
+        .key-setup {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .key-setup-title {
+            font-weight: 600;
+            color: #f8fafc;
+            margin-bottom: 12px;
+            font-size: 0.875rem;
+        }
+        
+        .key-setup-text {
+            color: #94a3b8;
+            font-size: 0.8125rem;
+            margin-bottom: 16px;
+        }
+        
+        .key-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 0.8125rem;
+        }
+        
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 0.875rem;
+        }
+        
+        .alert-success {
+            background: #064e3b;
+            border: 1px solid #065f46;
+            color: #6ee7b7;
+        }
+        
+        .alert-error {
+            background: #7f1d1d;
+            border: 1px solid #991b1b;
+            color: #fca5a5;
+        }
+        
+        .alert-info {
+            background: #0c4a6e;
+            border: 1px solid #075985;
+            color: #7dd3fc;
+        }
+        
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #334155;
+            border-top: 2px solid #06b6d4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .help-text {
+            color: #64748b;
+            font-size: 0.8125rem;
+            margin-top: 4px;
+        }
+        
+        @media (max-width: 640px) {
+            .container {
+                padding: 20px 16px;
+            }
+            
+            .form-container {
+                padding: 24px;
+            }
+            
+            .logo {
+                font-size: 2rem;
+            }
+            
+            .subtitle {
+                font-size: 1rem;
+            }
+            
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-actions {
+                flex-direction: column;
+            }
+            
+            .key-actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app"></div>
+
+    <script type="module">
+        const { createElement: h, render } = preact;
+        const { useState, useEffect } = preactHooks;
+        const html = htm.bind(h);
+        const { generateSecretKey, getPublicKey, finalizeEvent, SimplePool } = NostrTools;
+
+        // Nostr relays for publishing scrobbles
+        const RELAYS = [
+            'wss://spotify-scrobbler.fiatjaf.com',
+            'wss://nostr.wine',
+            'wss://theforest.nostr1.com',
+            'wss://nostr.land',
+            'wss://pyramid.fiatjaf.com'
+        ];
+
+        // Main Create Component
+        const CreateScrobble = () => {
+            const [privateKey, setPrivateKey] = useState('');
+            const [formData, setFormData] = useState({
+                title: '',
+                artist: '',
+                album: '',
+                spotify: '',
+                isrc: ''
+            });
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [message, setMessage] = useState({ type: '', text: '' });
+
+            useEffect(() => {
+                // Check for stored private key
+                const storedKey = localStorage.getItem('trackstr_private_key');
+                if (storedKey) {
+                    setPrivateKey(storedKey);
+                }
+            }, []);
+
+            const generateNewKey = () => {
+                const sk = generateSecretKey();
+                const skHex = Array.from(sk).map(byte => byte.toString(16).padStart(2, '0')).join('');
+                setPrivateKey(skHex);
+                setMessage({ type: 'info', text: 'New private key generated. Save it somewhere safe!' });
+            };
+
+            const saveKey = () => {
+                if (privateKey) {
+                    localStorage.setItem('trackstr_private_key', privateKey);
+                    setMessage({ type: 'success', text: 'Private key saved to browser storage.' });
+                }
+            };
+
+            const clearKey = () => {
+                localStorage.removeItem('trackstr_private_key');
+                setPrivateKey('');
+                setMessage({ type: 'info', text: 'Private key cleared from storage.' });
+            };
+
+            const handleInputChange = (field, value) => {
+                setFormData(prev => ({ ...prev, [field]: value }));
+                if (message.type === 'error') {
+                    setMessage({ type: '', text: '' });
+                }
+            };
+
+            const validateForm = () => {
+                if (!formData.title.trim()) {
+                    setMessage({ type: 'error', text: 'Track title is required.' });
+                    return false;
+                }
+                if (!formData.artist.trim()) {
+                    setMessage({ type: 'error', text: 'Artist name is required.' });
+                    return false;
+                }
+                if (!privateKey) {
+                    setMessage({ type: 'error', text: 'Private key is required to sign the scrobble.' });
+                    return false;
+                }
+                return true;
+            };
+
+            const createScrobbleEvent = () => {
+                const tags = [
+                    ['title', formData.title.trim()],
+                    ['artist', formData.artist.trim()]
+                ];
+
+                if (formData.album.trim()) {
+                    tags.push(['album', formData.album.trim()]);
+                }
+
+                if (formData.spotify.trim()) {
+                    const spotifyId = formData.spotify.trim().replace(/^https:\/\/open\.spotify\.com\/track\//, '');
+                    tags.push(['i', `spotify:track:${spotifyId}`]);
+                }
+
+                if (formData.isrc.trim()) {
+                    tags.push(['i', `isrc:${formData.isrc.trim()}`]);
+                }
+
+                const event = {
+                    kind: 1073,
+                    created_at: Math.floor(Date.now() / 1000),
+                    tags: tags,
+                    content: `🎵 Now playing: ${formData.title} by ${formData.artist}${formData.album ? ` from ${formData.album}` : ''}`
+                };
+
+                try {
+                    const skBytes = new Uint8Array(privateKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    return finalizeEvent(event, skBytes);
+                } catch (error) {
+                    throw new Error('Invalid private key format');
+                }
+            };
+
+            const submitScrobble = async () => {
+                if (!validateForm()) return;
+
+                setIsSubmitting(true);
+                setMessage({ type: '', text: '' });
+
+                try {
+                    const event = createScrobbleEvent();
+                    const pool = new SimplePool();
+                    
+                    // Publish to all relays
+                    const promises = RELAYS.map(relay => 
+                        pool.publish([relay], event).catch(err => {
+                            console.warn(`Failed to publish to ${relay}:`, err);
+                            return null;
+                        })
+                    );
+
+                    await Promise.allSettled(promises);
+                    
+                    setMessage({ 
+                        type: 'success', 
+                        text: 'Scrobble published successfully! It may take a moment to appear on the main feed.' 
+                    });
+                    
+                    // Clear form
+                    setFormData({
+                        title: '',
+                        artist: '',
+                        album: '',
+                        spotify: '',
+                        isrc: ''
+                    });
+
+                } catch (error) {
+                    setMessage({ 
+                        type: 'error', 
+                        text: `Failed to publish scrobble: ${error.message}` 
+                    });
+                } finally {
+                    setIsSubmitting(false);
+                }
+            };
+
+            const getPublicKeyFromPrivate = () => {
+                if (!privateKey) return '';
+                try {
+                    const skBytes = new Uint8Array(privateKey.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+                    return getPublicKey(skBytes);
+                } catch {
+                    return 'Invalid key format';
+                }
+            };
+
+            return html`
+                <div class="container">
+                    <header class="header">
+                        <div class="logo">
+                            <span class="music-note">♪</span> trackstr <span class="music-note">♫</span>
+                        </div>
+                        <div class="subtitle">
+                            Share Your Music with the World
+                        </div>
+                        <nav class="nav">
+                            <a href="index.html" class="nav-link">View Feed</a>
+                            <a href="create.html" class="nav-link active">Create Scrobble</a>
+                        </nav>
+                    </header>
+
+                    ${message.text && html`
+                        <div class=${`alert alert-${message.type}`}>
+                            ${message.text}
+                        </div>
+                    `}
+
+                    <div class="key-setup">
+                        <div class="key-setup-title">🔐 Nostr Identity</div>
+                        <div class="key-setup-text">
+                            ${privateKey 
+                                ? `Your public key: ${getPublicKeyFromPrivate().substring(0, 16)}...`
+                                : 'You need a Nostr private key to publish scrobbles. Generate one or paste your existing key.'
+                            }
+                        </div>
+                        <div class="key-actions">
+                            <button onclick=${generateNewKey} class="btn btn-secondary btn-small">
+                                Generate New Key
+                            </button>
+                            ${privateKey && html`
+                                <button onclick=${saveKey} class="btn btn-secondary btn-small">
+                                    Save to Browser
+                                </button>
+                                <button onclick=${clearKey} class="btn btn-secondary btn-small">
+                                    Clear Key
+                                </button>
+                            `}
+                        </div>
+                        <input
+                            type="password"
+                            class="form-input"
+                            style="margin-top: 16px"
+                            placeholder="Or paste your private key here (hex format)"
+                            value=${privateKey}
+                            oninput=${(e) => setPrivateKey(e.target.value)}
+                        />
+                    </div>
+
+                    <div class="form-container">
+                        <div class="form-title">🎵 Create New Scrobble</div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Track Title *</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                placeholder="Enter the track title"
+                                value=${formData.title}
+                                oninput=${(e) => handleInputChange('title', e.target.value)}
+                            />
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Artist *</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                placeholder="Enter the artist name"
+                                value=${formData.artist}
+                                oninput=${(e) => handleInputChange('artist', e.target.value)}
+                            />
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Album</label>
+                            <input
+                                type="text"
+                                class="form-input"
+                                placeholder="Enter the album name (optional)"
+                                value=${formData.album}
+                                oninput=${(e) => handleInputChange('album', e.target.value)}
+                            />
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Spotify Link</label>
+                                <input
+                                    type="text"
+                                    class="form-input"
+                                    placeholder="https://open.spotify.com/track/..."
+                                    value=${formData.spotify}
+                                    oninput=${(e) => handleInputChange('spotify', e.target.value)}
+                                />
+                                <div class="help-text">Optional: Link to Spotify track</div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">ISRC Code</label>
+                                <input
+                                    type="text"
+                                    class="form-input"
+                                    placeholder="USAT21904578"
+                                    value=${formData.isrc}
+                                    oninput=${(e) => handleInputChange('isrc', e.target.value)}
+                                />
+                                <div class="help-text">Optional: International Standard Recording Code</div>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button
+                                onclick=${submitScrobble}
+                                disabled=${isSubmitting}
+                                class="btn btn-primary"
+                            >
+                                ${isSubmitting ? html`<div class="spinner"></div>` : '🎵'}
+                                ${isSubmitting ? 'Publishing...' : 'Publish Scrobble'}
+                            </button>
+                            <a href="index.html" class="btn btn-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        // Render the app
+        render(html`<${CreateScrobble} />`, document.getElementById('app'));
+    </script>
+</body>
+</html>
