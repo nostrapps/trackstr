@@ -732,9 +732,10 @@
                                         })()}
                                         <div class="user-info">
                                             <a 
-                                                href="#" 
+                                                href="https://nostr.rocks/users/${scrobble.event.pubkey}" 
+                                                target="_blank"
                                                 class="username"
-                                                title=${scrobble.event.pubkey}
+                                                title="View profile on nostr.rocks"
                                             >
                                                 ${(() => {
                                                     const profile = profiles.get(scrobble.event.pubkey);
